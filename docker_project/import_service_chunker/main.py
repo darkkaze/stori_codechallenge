@@ -8,7 +8,12 @@ from kafka import KafkaProducer
 from kafka.admin import KafkaAdminClient, NewTopic
 from kafka.errors import NoBrokersAvailable, NodeNotReadyError, TopicAlreadyExistsError
 
-from settings import IMPORTS_FOLDER, KAFKA_OUTPUT_TOPIC, KAFKA_SERVER
+from settings import (
+    IMPORTS_FOLDER,
+    KAFKA_OUTBOUND_TOPIC,
+    KAFKA_SERVER,
+    PROCESSED_FOLDER,
+)
 
 
 def main():
@@ -24,12 +29,14 @@ def main():
 def discover_new_files() -> Iterable[pd.DataFrame]:
     """check imports folder for new files
     open it in a dataframe and return a generator
+    then  move the file to processed folder
 
     Returns:
         Iterable[pd.DataFrame]: Dataframe of a file
     """
     for file_name in os.listdir(IMPORTS_FOLDER):
         yield pd.read_csv(f"{IMPORTS_FOLDER}{file_name}")
+        os.rename(f"{IMPORTS_FOLDER}{file_name}", f"{PROCESSED_FOLDER}{file_name}")
 
 
 def chunk_by_account_number(df: pd.DataFrame) -> Iterable[pd.DataFrame]:
@@ -69,7 +76,7 @@ def send_data_to_process(account_number_dfs: Iterable[pd.DataFrame]):
         file = BytesIO()
         account_number_df.to_csv(file)
         file.seek(0)
-        producer.send(KAFKA_OUTPUT_TOPIC, file.getvalue())
+        producer.send(KAFKA_OUTBOUND_TOPIC, file.getvalue())
 
 
 def create_topic_if_not_exist():
@@ -85,7 +92,7 @@ def create_topic_if_not_exist():
             kafka_admin_client = KafkaAdminClient(bootstrap_servers=[KAFKA_SERVER])
             topic_list = [
                 NewTopic(
-                    name=KAFKA_OUTPUT_TOPIC, num_partitions=1, replication_factor=1
+                    name=KAFKA_OUTBOUND_TOPIC, num_partitions=1, replication_factor=1
                 )
             ]
             kafka_admin_client.create_topics(topic_list)
