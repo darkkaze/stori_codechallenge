@@ -1,51 +1,66 @@
 version: "3.9" # optional since v1.27.0
 services:
-  db:
-    container_name: db
-    image: postgres
+  # db:
+  #   container_name: db
+  #   image: postgres
+  #   environment:
+  #     POSTGRES_DB: story_db
+  #     POSTGRES_USER: story
+  #     POSTGRES_PASSWORD: somepassword # ${POSTGRES_PASSWORD}
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.0.1
+    container_name: zookeeper
     environment:
-      POSTGRES_DB: story_db
-      POSTGRES_USER: story
-      POSTGRES_PASSWORD: somepassword # ${POSTGRES_PASSWORD}
-  kafka:
-    container_name: kafka
-    image: quay.io/strimzi/kafka:latest-kafka-2.8.1-amd64
-    command:
-      [
-        "sh",
-        "-c",
-        "export CLUSTER_ID=$$(bin/kafka-storage.sh random-uuid) && bin/kafka-storage.sh format -t $$CLUSTER_ID -c config/kraft/server.properties && bin/kafka-server-start.sh config/kraft/server.properties --override advertised.listeners=$${KAFKA_ADVERTISED_LISTENERS} --override listener.security.protocol.map=$${KAFKA_LISTENER_SECURITY_PROTOCOL_MAP} --override listeners=$${KAFKA_LISTENERS}"
-      ]
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - broker-kafka
+  broker:
+    image: confluentinc/cp-kafka:7.0.1
+    container_name: broker
     ports:
+      # To learn about configuring Kafka for access across networks see
+      # https://www.confluent.io/blog/kafka-client-cannot-connect-to-broker-on-aws-on-docker-etc/
       - "9092:9092"
+    depends_on:
+      - zookeeper
     environment:
-      LOG_DIR: "/tmp/logs"
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_LISTENERS: PLAINTEXT://:29092,PLAINTEXT_HOST://:9092,CONTROLLER://:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://broker:29092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+    networks:
+      - broker-kafka
   import_service_step1:
-    # chunker
     container_name: step1_chunker
     build: import_service_chunker/.
+    command: [ "python3", "main.py" ]
     depends_on:
-      - kafka
-      - db
+      - broker
+    #   - db
     volumes:
-      - imports:/home/ubuntu/imports
-  import_service_step2:
-    # process
-    container_name: step2_process
-    build: import_service_process/.
-    depends_on:
-      - kafka
-      - db
-  import_service_step3:
-    # report
-    container_name: step3_report
-    build: import_service_report/.
-    depends_on:
-      - kafka
-      - db
-volumes:
-  imports:
-    external: true
+      - ./imports:/imports
+      - ./import_service_chunker:/app
+    networks:
+      - broker-kafka
+    environment:
+      KAFKA_SERVER: broker:29092
+  # import_service_step2:
+  #   container_name: step2_process
+  #   build: import_service_process/.
+  #   depends_on:
+  #     - kafka
+  #     - db
+  # import_service_step3:
+  #   container_name: step3_report
+  #   build: import_service_report/.
+  #   depends_on:
+  #     - kafka
+  #     - db
+
+networks:
+  broker-kafka:
+    driver: bridge
