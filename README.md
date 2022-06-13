@@ -3,8 +3,11 @@
 Hello, I really enjoyed the test. but I ran into an ambiguous part that I hope does not affect.
 
 > Question (i ask this to Fernando from RH):
+
 > > because the document speaks of "debit and credit accounts" in the email report. That's means, a user can have more than one type of account/product
+
 > Fernando Answer:
+
 > > there can be more than one user but only one card per user.
 
 the answer left me even more confused, but I continued with the hope that what is important is the proposed architecture and not a bit part of the final result.
