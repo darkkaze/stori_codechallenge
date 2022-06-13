@@ -1,12 +1,16 @@
 version: "3.9" # optional since v1.27.0
 services:
-  # db:
-  #   container_name: db
-  #   image: postgres
-  #   environment:
-  #     POSTGRES_DB: story_db
-  #     POSTGRES_USER: story
-  #     POSTGRES_PASSWORD: somepassword # ${POSTGRES_PASSWORD}
+  db:
+    container_name: db
+    image: postgres:14.1-alpine
+    environment:
+      POSTGRES_DB: stori_db
+      POSTGRES_USER: stori
+      POSTGRES_PASSWORD: somepassword # ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    networks:
+      - broker-kafka
   zookeeper:
     image: confluentinc/cp-zookeeper:7.0.1
     container_name: zookeeper
@@ -37,29 +41,63 @@ services:
   import_service_step1:
     container_name: step1_chunker
     build: import_service_chunker/.
-    command: [ "python3", "main.py" ]
+    command: [ "python3", "-u", "main.py" ]
+    restart: always
     depends_on:
       - broker
-    #   - db
+      - db
     volumes:
       - ./imports:/imports
+      - ./processed:/processed
       - ./import_service_chunker:/app
     networks:
       - broker-kafka
     environment:
       KAFKA_SERVER: broker:29092
-  # import_service_step2:
-  #   container_name: step2_process
-  #   build: import_service_process/.
-  #   depends_on:
-  #     - kafka
-  #     - db
-  # import_service_step3:
-  #   container_name: step3_report
-  #   build: import_service_report/.
-  #   depends_on:
-  #     - kafka
-  #     - db
+      KAFKA_OUTBOUND_TOPIC: "to_process"
+  import_service_step2:
+    container_name: step2_process
+    build: import_service_process/.
+    command: [ "python3", "-u", "main.py" ]
+    restart: always
+    depends_on:
+      - kafka
+      - import_service_step1
+      - db
+    volumes:
+      - ./import_service_process:/app
+    networks:
+      - broker-kafka
+    environment:
+      KAFKA_SERVER: broker:29092
+      KAFKA_INBOUND_TOPIC: "to_process"
+      KAFKA_OUTBOUND_TOPIC: "to_report"
+      DB_USERNAME: stori
+      DB_PASSWORD: somepassword
+      DB_HOST: db
+      DB_DATABASE: stori_db
+  import_service_step3:
+    container_name: step3_report
+    build: import_service_report/.
+    command: [ "python3", "-u", "main.py" ]
+    restart: always
+    depends_on:
+      - kafka
+      - db
+      - import_service_step2
+    volumes:
+      - ./import_service_report:/app
+      - ./reports:/reports
+    networks:
+      - broker-kafka
+    environment:
+      KAFKA_SERVER: broker:29092
+      KAFKA_INBOUND_TOPIC: "to_report"
+      DB_USERNAME: stori
+      DB_PASSWORD: somepassword
+      DB_HOST: db
+      DB_DATABASE: stori_db
+      REPORT_FOLDER: /reports/
 
 networks:
   broker-kafka:
