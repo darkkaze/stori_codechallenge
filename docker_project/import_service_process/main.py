@@ -10,7 +10,15 @@ from kafka import KafkaConsumer, KafkaProducer
 from kafka.admin import KafkaAdminClient
 from kafka.errors import NoBrokersAvailable, NodeNotReadyError
 
-from settings import KAFKA_INBOUND_TOPIC, KAFKA_OUTBOUND_TOPIC, KAFKA_SERVER
+from settings import (
+    DB_DATABASE,
+    DB_HOST,
+    DB_PASSWORD,
+    DB_USERNAME,
+    KAFKA_INBOUND_TOPIC,
+    KAFKA_OUTBOUND_TOPIC,
+    KAFKA_SERVER,
+)
 from tables import table_account_sql, table_transactions_sql
 
 logging.basicConfig(filename="proccess.log", encoding="utf-8", level=logging.DEBUG)
@@ -20,10 +28,10 @@ def init_connection_engine():
     pool = sqlalchemy.create_engine(
         sqlalchemy.engine.url.URL.create(
             drivername="postgresql+psycopg2",
-            username=os.getenv("DB_USERNAME"),
-            password=os.getenv("DB_PASSWORD"),
-            host=os.getenv("DB_HOST"),
-            database=os.getenv("DB_DATABASE"),
+            username=DB_USERNAME,
+            password=DB_PASSWORD,
+            host=DB_HOST,
+            database=DB_DATABASE,
         ),
         pool_size=5,
         max_overflow=2,
