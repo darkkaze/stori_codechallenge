@@ -3,9 +3,11 @@ import os
 from time import sleep
 
 import sqlalchemy
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 from kafka import KafkaConsumer
 from kafka.admin import KafkaAdminClient
 from kafka.errors import NoBrokersAvailable, NodeNotReadyError
+from numpy import mean
 
 from settings import (
     DB_DATABASE,
@@ -39,6 +41,10 @@ def init_connection_engine():
 
 db = init_connection_engine()
 
+jinja2_env = Environment(
+    loader=FileSystemLoader("templates"), autoescape=select_autoescape()
+)
+
 
 def main():
     """
@@ -49,7 +55,8 @@ def main():
         account_id = message.value.decode("utf-8")
         transactions_info = get_account_info(account_id)
         summary = get_summary(transactions_info)
-        send_email(transactions_info, summary)
+        email_html = render_email(transactions_info, summary)
+        send_email(transactions_info["email"], email_html)
 
 
 def get_account_info(account_id: str) -> dict:
@@ -105,10 +112,12 @@ def get_summary(transaction_info: dict) -> dict:
         dict: {"total_balance", "average", 1, 2, ..., 12}
     """
     summary = {
-        "total_balance": round(sum(
+        "total_balance": round(
+            sum([row["transaction"] for row in transaction_info["transactions"]]), 2
+        ),
+        "average": mean(
             [row["transaction"] for row in transaction_info["transactions"]]
-        ), 2),
-        "average": "???",  # TODO:  average  with what parameters?
+        ),  # TODO:  average  with what parameters?
     }
     for month in range(1, 13):
         summary[month] = len(
@@ -121,20 +130,34 @@ def get_summary(transaction_info: dict) -> dict:
     return summary
 
 
-def send_email(transaction_info: dict, summary: dict):
-    """
-    i dont have a email server,
-    so i'm going to put the html in a report folder
+def render_email(transaction_info: dict, summary: dict) -> str:
+    """render email using jina2
 
     Args:
         transaction_info (dict):
             {"email", "first_name", "type", "transactions": ["transaction_ts", "transaction"]}
         summary (dict):
             {"total_balance", "average", 1, 2, ..., 12}
+
+    Returns:
+        str: rendered html
     """
-    with open(f'{REPORT_FOLDER}email_to_{transaction_info["email"]}.csv', "w") as f:
-        f.write(str(transaction_info))
-        f.write(str(summary))
+    global jinja2_env
+    template = jinja2_env.get_template("report.html")
+    return str(template.render(transaction_info=transaction_info, summary=summary))
+
+
+def send_email(email: str, html: str):
+    """
+    i dont have a email server,
+    so i'm going to put the html in a report folder
+
+    Args:
+        email (str)
+        html (str)  email content
+    """
+    with open(f"{REPORT_FOLDER}email_to_{email}.html", "w") as f:
+        f.write(html)
 
 
 def check_kafka():
