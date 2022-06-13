@@ -1,4 +1,6 @@
+import logging
 import os
+import shutil
 from io import BytesIO
 from time import sleep
 from typing import Iterable
@@ -14,6 +16,8 @@ from settings import (
     KAFKA_SERVER,
     PROCESSED_FOLDER,
 )
+
+logging.basicConfig(filename="chunker.log", encoding="utf-8", level=logging.DEBUG)
 
 
 def main():
@@ -36,7 +40,7 @@ def discover_new_files() -> Iterable[pd.DataFrame]:
     """
     for file_name in os.listdir(IMPORTS_FOLDER):
         yield pd.read_csv(f"{IMPORTS_FOLDER}{file_name}")
-        os.rename(f"{IMPORTS_FOLDER}{file_name}", f"{PROCESSED_FOLDER}{file_name}")
+        shutil.move(f"{IMPORTS_FOLDER}{file_name}", f"{PROCESSED_FOLDER}{file_name}")
 
 
 def chunk_by_account_number(df: pd.DataFrame) -> Iterable[pd.DataFrame]:
@@ -55,8 +59,8 @@ def chunk_by_account_number(df: pd.DataFrame) -> Iterable[pd.DataFrame]:
     """
     account_numbers = df["account_number"].unique()
     for account_number in account_numbers:
-        account_number_df = df[["account_number" == account_number]].copy()
-        yield account_number
+        account_number_df = df[df["account_number"] == account_number].copy()
+        yield account_number_df
 
 
 def send_data_to_process(account_number_dfs: Iterable[pd.DataFrame]):
@@ -71,7 +75,7 @@ def send_data_to_process(account_number_dfs: Iterable[pd.DataFrame]):
         to a buffer of pending record sends and immediately returns
         so... is not necesary to add extra logic to reduce network latency
     """
-    producer = KafkaProducer(bootstrap_servers="localhost:1234")
+    producer = KafkaProducer(bootstrap_servers=KAFKA_SERVER)
     for account_number_df in account_number_dfs:
         file = BytesIO()
         account_number_df.to_csv(file)
@@ -98,19 +102,19 @@ def create_topic_if_not_exist():
             kafka_admin_client.create_topics(topic_list)
             break
         except NoBrokersAvailable:
-            print("kafka is not ready, waiting...")
+            logging.debug("kafka is not ready, waiting...")
             sleep(1)
         except NodeNotReadyError:
-            print("kafka  node is not ready, waiting...")
+            logging.debug("kafka  node is not ready, waiting...")
             sleep(1)
         except TopicAlreadyExistsError:
             break
 
 
 if __name__ == "__main__":
-    print("check if kafka is ready")
+    logging.debug("check if kafka is ready")
     create_topic_if_not_exist()
-    print("starting")
+    logging.debug("starting")
     while True:
         main()
         sleep(1)
