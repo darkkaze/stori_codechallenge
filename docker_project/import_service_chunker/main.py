@@ -1,6 +1,7 @@
 import logging
 import os
 import shutil
+from datetime import datetime
 from io import BytesIO
 from time import sleep
 from typing import Iterable
@@ -40,7 +41,10 @@ def discover_new_files() -> Iterable[pd.DataFrame]:
     """
     for file_name in os.listdir(IMPORTS_FOLDER):
         yield pd.read_csv(f"{IMPORTS_FOLDER}{file_name}")
-        shutil.move(f"{IMPORTS_FOLDER}{file_name}", f"{PROCESSED_FOLDER}{file_name}")
+        shutil.move(
+            f"{IMPORTS_FOLDER}{file_name}",
+            f"{PROCESSED_FOLDER}{datetime.now().isoformat()}-{file_name}",
+        )
 
 
 def chunk_by_account_number(df: pd.DataFrame) -> Iterable[pd.DataFrame]:
