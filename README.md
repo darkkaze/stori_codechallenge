@@ -9,6 +9,16 @@ Hello, I really enjoyed the test. but I ran into an ambiguous part that I hope d
 
 the answer left me even more confused, but I continued with the hope that what is important is the proposed architecture and not a bit part of the final result.
 
+## Architecture
+
+I divided the process into 3 stages/services.
+
+- step1 (chunker): pre process the file, do a subset X user  and send each one to a kafka (to_process) topic.
+- step2 (process): receive in a kafka (to_process) topic  the  data for one user and insert it in a db. Send the account_id to a kafka (to_report) topic
+- step3 (report): receive in a kafka (to_report) topic  the  account id.  Generate the html report and sent it by email.
+
+the same architecture should work for docker and AWS with minimal code changes. It could still be further optimized to improve insert speed, but for now it works as a test.
+
 ## Docker compose solution
 
 i mount the db, a kafka and 3 services that process different parts of the problem in a docker infrastructure.
