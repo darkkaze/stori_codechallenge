@@ -12,9 +12,11 @@ Hello, I really enjoyed the test. but I ran into an ambiguous part that I hope d
 
 the answer left me even more confused, but I continued with the hope that what is important is the proposed architecture and not a bit part of the final result.
 
+Another assumption I made was if a file could contain more than one user/account. I think the codechallenge document does not make it clear, so I assumed the case of having many accounts per file.
+
 ## Architecture
 
-I divided the process into 3 stages/services.
+I divided the process into 3 steps/services.
 
 - step1 (chunker): pre process the file, do a subset X user  and send each one to a kafka (to_process) topic.
 - step2 (process): receive in a kafka (to_process) topic  the  data for one user and insert it in a db. Send the account_id to a kafka (to_report) topic
