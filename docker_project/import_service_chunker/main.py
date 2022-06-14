@@ -38,6 +38,13 @@ def discover_new_files() -> Iterable[pd.DataFrame]:
 
     Returns:
         Iterable[pd.DataFrame]: Dataframe of a file
+
+    Todo:
+        - open the file in a multiproccess safe mode 
+          maybe add a semaphore with redis 
+        - move the file  until the end of the process 
+          maybe return a Iterable[contextManager[DataFrame]]  insted of Iterable[DataFrame]
+
     """
     for file_name in os.listdir(IMPORTS_FOLDER):
         yield pd.read_csv(f"{IMPORTS_FOLDER}{file_name}")
